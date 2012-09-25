@@ -1,8 +1,6 @@
 import os
 import sys
 import re
-import shutil
-from collections import deque
 
 PARSE_FILE = 0
 EXTERNAL_FILE = 1
@@ -32,16 +30,10 @@ class SourceInfo:
 	def __init__(self, baseDir , outputDir, outputName):
 		self.m_scannedFiles = set()
 		
-		self.m_headerQueue = deque()
-		self.m_sourceQueue = deque()
+		self.m_headerQueue = list()
+		self.m_sourceQueue = list()
 		
-		self.m_sourceDirs = list()
-		self.m_includeDirs = list()
-		
-		self.m_baseDir = baseDir;
-		self.AddSourceDirectory(os.path.join(self.m_baseDir, "src"))
-		self.AddIncludeDirectory(os.path.join(self.m_baseDir, "include"))
-		
+		self.m_baseDir = baseDir; 
 		self.m_outputDir = outputDir
 		
 		self.m_sourceAmalgamation = None
@@ -50,20 +42,6 @@ class SourceInfo:
 		self.m_outputName = outputName
 		self.m_sourceFileExt = ".cpp"
 		self.m_headerFileExt = ".hpp"
-		
-	def AddSourceDirectory(self, path):
-		if not os.path.exists(path): return False
-		
-		print("Source Directory Added: " + path)
-		self.m_sourceDirs.append(path)
-		return True
-	
-	def AddIncludeDirectory(self, path):
-		if not os.path.exists(path): return False
-		
-		print("Include Directory Added: " + path)
-		self.m_includeDirs.append(path)
-		return True
 		
 	def InitAmalgamationStreams(self):
 		headerName = self.m_outputName + self.m_headerFileExt
@@ -80,7 +58,7 @@ class SourceInfo:
 		
 	def CloseAmalgamationStreams(self):
 		self.m_headerAmalgamation.close()
-		self.m_sourceAmalgamation.close()                                                                                                          
+		self.m_sourceAmalgamation.close()
 		
 	def GetOutputStreamForExt(self , ext):
 		if IsCppSourceFile(ext):
@@ -114,117 +92,123 @@ class SourceInfo:
 		
 		print ("%s%s: %s" % (tabs , message ,  path))
 		
-
-		                                          
+	def GetAdjustedPath(self , pwd , include , dirCount):
+		dirs = pwd.split('/')
+		for i in range(dirCount):
+			dirs.pop()
+		
+		adjustedPwd = "/".join(dirs)
+		adjustedName = include.replace("../" , "")
+		absolutePath = os.path.join(adjustedPwd , adjustedName)
+		
+		if os.path.isfile(absolutePath):
+			return absolutePath
+			
+		return include
+		
 	def GetAbsoluteSourcePath(self, pwd, include):
 		if os.path.isabs(include):
 			return include
 		
-		#todo: handle "../" in include string -- result = UP_DIRECTORY_MATCHER.findall(include)
-		
-		for includeDir in self.m_includeDirs:
-			absPath = os.path.join(includeDir , include)
-			if os.path.exists(absPath): return absPath
+		#handle "../" in include string
+		result = UP_DIRECTORY_MATCHER.findall(include)
+		if result:
+			return self.GetAdjustedPath(pwd, include, len(result))
 			
 		
-		for sourceDir in self.m_sourceDirs:
-			absPath = os.path.join(sourceDir , include)
-			if os.path.exists(absPath): return absPath
+		# check for file in pwd, if this doesnt exist assume included from base source dir
+		absolutePath = os.path.join(pwd , include)
+		if os.path.isfile(absolutePath):
+			return absolutePath
 		
-		return None
+		absolutePath = os.path.join(self.m_baseDir , include)
+		if os.path.isfile(absolutePath):
+			return absolutePath
+		
+		return include
 		
 	def ShouldParseFile(self , path , ext):
 		if (path in self.m_scannedFiles): return ALREADY_SCANNED
 		
 		#todo: make sure that path is within the include directory....
 		if not IsCppFile(ext) or not os.path.exists(path): 
-			#print ("external file- path:%s\text:%s" % (path, ext))
+			print ("external file- path:%s\text:%s" % (path, ext))
 			return EXTERNAL_FILE
 		
 		return PARSE_FILE
-		
-	def LogMessage(self, message):
-		print(message)
 		
 	def ScanSourceFile(self, path , depth):
 		dirpath , filename = os.path.split(path)
 		ext = os.path.splitext(filename)[1]
 
+		
 		info = self.ShouldParseFile(path, ext)
 		if info != PARSE_FILE:
+			#self.PrintParseFileMessage("Skipping" , path , depth)
 			return info
-		                                 
-		self.LogMessage("scan file: " + path)     
+		
 		self.m_scannedFiles.add(path)
 		
+		#self.PrintParseFileMessage("Scanning" , path , depth)
 		stream = self.GetOutputStreamForExt(ext)
 		
 		src= open (path , 'r')
+		
+		self.AddFileToQueue(path, ext)
 		
 		lines = src.readlines()
 		
 		for line in lines:
 			result = INCLUDE_FILE_MATCHER.findall(line)
 			
+			#if no include file found copy the line to the amalgamation, otherwise parse the include file
 			if result:
 				includeFile = self.GetAbsoluteSourcePath(dirpath, result[0])
-				if includeFile == None: continue
-				
+				#self.PrintParseFileMessage("include file found" , includeFile , depth+1)
 				call = self.ScanSourceFile(includeFile , depth + 1)
 				
 				#only include external files once
 				if call == EXTERNAL_FILE:
 					self.m_scannedFiles.add(includeFile)
+					stream.write(line)
 		
 		src.close()
 		src = None
 		
-		self.AddFileToQueue(path, ext)
-		
 		return info
 		
-	def ParseSourceDirectoies(self):
-	
-		for sourceDirectory in 	self.m_sourceDirs:
-			for root, subFolders, files in os.walk(sourceDirectory):
-				for filename in files:
-					path =  os.path.join(root, filename)
-					#self.PrintParseFileMessage("Walk" , path , 0)
-					self.ScanSourceFile(path , 0)
-		
-	def WriteBeginFileHeader(self, filename, stream):
+	def WriteBeginFileHeader(self, filename):
 		stream.write("//Begin File: %s\n\n" % (filename))
 	
-	def WriteEndFileHeader(self, filename, stream):
+	def WriteEndFileHeader(self, filename):
 		stream.write("\n\n\n")
 		stream.write("//End File: " +  filename)
 		stream.write("\n\n\n")
 		
 	def AddFileToQueue(self, filename, ext):
 		if IsCppHeaderFile(ext):
-			self.LogMessage("enqueue header file: " + filename)     
-			self.m_headerQueue.append(filename)
+			self.headerQueue.append(filename)
 		elif IsCppSourceFile(ext):
-			self.LogMessage("enqueue source file: " + filename) 
-			self.m_sourceQueue.append(filename)
+			self.sourceQueue.append(filename)
+		
+	def ParseSourceDirectory(self):
+		
+		for root, subFolders, files in os.walk(self.m_baseDir):
+			for filename in files:
+				path =  os.path.join(root, filename)
+				#self.PrintParseFileMessage("Walk" , path , 0)
+				self.ScanSourceFile(path , 0)
 				
 	def AmalgamateQueue(self, queue, stream):
-		while (len(queue) > 0):
-			filename = queue.popleft()
-			self.WriteFileToStream(filename, stream)
-
-			
-	def WriteFileToStream(self, filename, stream):
-		source = open(filename, 'r')
-		
-		self.WriteBeginFileHeader(filename, stream)
-		shutil.copyfileobj(source , stream)
-		self.WriteEndFileHeader(filename, stream)
+		while (queue.count > 0):
+			filename = queue.pop()
+			WriteBeginFileHeader(filename)
+			WriteEndFileHeader(filename)
 	
 	def WriteAlgamationFiles(self):
 		self.InitAmalgamationStreams()
-		self.AmalgamateQueue(self.m_headerQueue, self.m_headerAmalgamation)
-		self.AmalgamateQueue(self.m_sourceQueue, self.m_sourceAmalgamation)
+		self.AmalgamateQueue()
+		self.AmalgamateQueue()
 		self.CloseAmalgamationStreams()
 			
 baseDir = sys.argv[1]
@@ -237,5 +221,4 @@ print ("output name: " + outputName)
 
 sourceInfo = SourceInfo(baseDir , outputPath, outputName)
 
-sourceInfo.ParseSourceDirectoies()
-sourceInfo.WriteAlgamationFiles()
+sourceInfo.ParseSourceDirectory()
