@@ -39,8 +39,6 @@ class SourceInfo:
 		self.m_includeDirs = list()
 		
 		self.m_baseDir = baseDir;
-		self.AddSourceDirectory(os.path.join(self.m_baseDir, "src"))
-		self.AddIncludeDirectory(os.path.join(self.m_baseDir, "include"))
 		
 		self.m_outputDir = outputDir
 		
@@ -50,18 +48,26 @@ class SourceInfo:
 		self.m_outputName = outputName
 		self.m_sourceFileExt = ".cpp"
 		self.m_headerFileExt = ".hpp"
+		self.m_verbose = 1
+		
+		self.AddSourceDirectory(os.path.join(self.m_baseDir, "src"))
+		self.AddIncludeDirectory(os.path.join(self.m_baseDir, "include"))
+		
+	def LogMessage(self, message, level = 1):
+		if level >= self.m_verbose:
+			print(message)
 		
 	def AddSourceDirectory(self, path):
 		if not os.path.exists(path): return False
 		
-		print("Source Directory Added: " + path)
+		self.LogMessage("Source Directory Added: " + path)
 		self.m_sourceDirs.append(path)
 		return True
 	
 	def AddIncludeDirectory(self, path):
 		if not os.path.exists(path): return False
 		
-		print("Include Directory Added: " + path)
+		self.LogMessage("Include Directory Added: " + path)
 		self.m_includeDirs.append(path)
 		return True
 		
@@ -136,15 +142,10 @@ class SourceInfo:
 	def ShouldParseFile(self , path , ext):
 		if (path in self.m_scannedFiles): return ALREADY_SCANNED
 		
-		#todo: make sure that path is within the include directory....
 		if not IsCppFile(ext) or not os.path.exists(path): 
-			#print ("external file- path:%s\text:%s" % (path, ext))
 			return EXTERNAL_FILE
 		
 		return PARSE_FILE
-		
-	def LogMessage(self, message):
-		print(message)
 		
 	def ScanSourceFile(self, path , depth):
 		dirpath , filename = os.path.split(path)
@@ -154,15 +155,13 @@ class SourceInfo:
 		if info != PARSE_FILE:
 			return info
 		                                 
-		self.LogMessage("scan file: " + path)     
+		self.LogMessage("scan file: " + path, 5)     
 		self.m_scannedFiles.add(path)
 		
 		stream = self.GetOutputStreamForExt(ext)
 		
 		src= open (path , 'r')
-		
 		lines = src.readlines()
-		
 		for line in lines:
 			result = INCLUDE_FILE_MATCHER.findall(line)
 			
@@ -189,7 +188,6 @@ class SourceInfo:
 			for root, subFolders, files in os.walk(sourceDirectory):
 				for filename in files:
 					path =  os.path.join(root, filename)
-					#self.PrintParseFileMessage("Walk" , path , 0)
 					self.ScanSourceFile(path , 0)
 		
 	def WriteBeginFileHeader(self, filename, stream):
@@ -202,10 +200,10 @@ class SourceInfo:
 		
 	def AddFileToQueue(self, filename, ext):
 		if IsCppHeaderFile(ext):
-			self.LogMessage("enqueue header file: " + filename)     
+			self.LogMessage("enqueue header file: " + filename, 5)     
 			self.m_headerQueue.append(filename)
 		elif IsCppSourceFile(ext):
-			self.LogMessage("enqueue source file: " + filename) 
+			self.LogMessage("enqueue source file: " + filename, 5) 
 			self.m_sourceQueue.append(filename)
 				
 	def AmalgamateQueue(self, queue, stream):
@@ -216,9 +214,16 @@ class SourceInfo:
 			
 	def WriteFileToStream(self, filename, stream):
 		source = open(filename, 'r')
-		
+		self.LogMessage("Write File: " + filename, 3) 
 		self.WriteBeginFileHeader(filename, stream)
-		shutil.copyfileobj(source , stream)
+		
+		lines = source.readlines()
+		for line in lines:
+			result = INCLUDE_FILE_MATCHER.findall(line)
+			
+			if result: continue
+			stream.write(line)
+		
 		self.WriteEndFileHeader(filename, stream)
 	
 	def WriteAlgamationFiles(self):
