@@ -50,8 +50,8 @@ class SourceInfo:
 		
 		self.m_sourceAmalgamation.write('#include"%s"\n' % (headerName))
 		
-		print "creating source Amalgamation:" + sourcePath
-		print "creating source Amalgamation:" + headerPath
+		print ("creating source Amalgamation:" + sourcePath)
+		print ("creating source Amalgamation:" + headerPath)
 		
 	def CloseAmalgamationStreams(self):
 		self.m_headerAmalgamation.close()
@@ -70,7 +70,7 @@ class SourceInfo:
 		AdjustFileExtension(ext)
 		
 		if not IsCppSourceFile(ext):
-			print "Warning: %s is not a recognized c++ source file extension" % (ext)
+			print ("Warning: %s is not a recognized c++ source file extension" % (ext))
 		
 		self.m_sourceFileExt = ext
 		
@@ -78,7 +78,7 @@ class SourceInfo:
 		AdjustFileExtension(ext)
 		
 		if not IsCppHeaderFile(ext):
-			print "Warning: %s is not a recognized c++ header file extension" % (ext)
+			print ("Warning: %s is not a recognized c++ header file extension" % (ext))
 		
 		self.m_sourceFileExt = ext
 	
@@ -87,7 +87,7 @@ class SourceInfo:
 		for i in range(depth):
 			tabs = tabs + '\t'
 		
-		print "%s%s: %s" % (tabs , message ,  path)
+		print ("%s%s: %s" % (tabs , message ,  path))
 		
 	def GetAdjustedPath(self , pwd , include , dirCount):
 		dirs = pwd.split('/')
@@ -129,7 +129,7 @@ class SourceInfo:
 		
 		#todo: make sure that path is within the include directory....
 		if not IsCppFile(ext) or not os.path.exists(path): 
-			print "external file- path:%s\text:%s" % (path, ext)
+			print ("external file- path:%s\text:%s" % (path, ext))
 			return EXTERNAL_FILE
 		
 		return PARSE_FILE
@@ -152,6 +152,8 @@ class SourceInfo:
 		src= open (path , 'r')
 		lines = src.readlines()
 		
+		stream.write("//Begin File: %s\n\n" % (filename))
+		
 		for line in lines:
 			result = INCLUDE_FILE_MATCHER.findall(line)
 			
@@ -167,6 +169,10 @@ class SourceInfo:
 					stream.write(line)
 			else:
 				stream.write(line)
+		
+		stream.write("\n\n\n")
+		stream.write("//End File: " +  filename)
+		stream.write("\n\n\n")
 		
 		src.close()
 		src = None
@@ -193,9 +199,9 @@ baseDir = sys.argv[1]
 outputPath = sys.argv[2]
 outputName = sys.argv[3]
 
-print "base dir: " + baseDir
-print "output dir: " + outputPath
-print "output name: " + outputName
+print ("base dir: " + baseDir)
+print ("output dir: " + outputPath)
+print ("output name: " + outputName)
 
 sourceInfo = SourceInfo(baseDir , outputPath, outputName)
 
