@@ -30,70 +30,70 @@ def AdjustFileExtension(ext):
 
 class SourceInfo:
 	def __init__(self, baseDir , outputDir, outputName):
-		self.m_scannedFiles = set()
+		self.scannedFiles = set()
 		
-		self.m_headerQueue = deque()
-		self.m_sourceQueue = deque()
+		self.headerQueue = deque()
+		self.sourceQueue = deque()
 		
-		self.m_sourceDirs = list()
-		self.m_includeDirs = list()
+		self.sourceDirs = list()
+		self.includeDirs = list()
 		
-		self.m_baseDir = baseDir;
+		self.baseDir = baseDir;
 		
-		self.m_outputDir = outputDir
+		self.outputDir = outputDir
 		
-		self.m_sourceAmalgamation = None
-		self.m_headerAmalgamation = None
+		self.sourceAmalgamation = None
+		self.headerAmalgamation = None
 		
-		self.m_outputName = outputName
-		self.m_sourceFileExt = ".cpp"
-		self.m_headerFileExt = ".hpp"
-		self.m_verbose = 1
+		self.outputName = outputName
+		self.sourceFileExt = ".cpp"
+		self.headerFileExt = ".hpp"
+		self.verbose = 1
 		
-		self.AddSourceDirectory(os.path.join(self.m_baseDir, "src"))
-		self.AddIncludeDirectory(os.path.join(self.m_baseDir, "include"))
+		self.AddSourceDirectory(os.path.join(self.baseDir, "src"))
+		self.AddIncludeDirectory(os.path.join(self.baseDir, "include"))
 		
 	def LogMessage(self, message, level = 1):
-		if level >= self.m_verbose:
+		if level >= self.verbose:
 			print(message)
 		
 	def AddSourceDirectory(self, path):
 		if not os.path.exists(path): return False
 		
 		self.LogMessage("Source Directory Added: " + path)
-		self.m_sourceDirs.append(path)
+		self.sourceDirs.append(path)
 		return True
 	
 	def AddIncludeDirectory(self, path):
 		if not os.path.exists(path): return False
 		
 		self.LogMessage("Include Directory Added: " + path)
-		self.m_includeDirs.append(path)
+		self.includeDirs.append(path)
 		return True
 		
 	def InitAmalgamationStreams(self):
-		headerName = self.m_outputName + self.m_headerFileExt
-		headerPath = os.path.join(self.m_outputDir , headerName)
-		sourcePath = os.path.join(self.m_outputDir , self.m_outputName + self.m_sourceFileExt)
+		headerName = self.outputName + self.headerFileExt
+		headerPath = os.path.join(self.outputDir , headerName)
+		sourcePath = os.path.join(self.outputDir , self.outputName + self.sourceFileExt)
 		
-		self.m_headerAmalgamation = open (headerPath , 'w')
-		self.m_sourceAmalgamation = open (sourcePath , 'w')
+		self.headerAmalgamation = open (headerPath , 'w')
+		self.sourceAmalgamation = open (sourcePath , 'w')
 		
-		self.m_sourceAmalgamation.write('#include"%s"\n' % (headerName))
+		self.sourceAmalgamation.write('#include"%s"\n' % (headerName))
 		
 		print ("creating source Amalgamation:" + sourcePath)
 		print ("creating source Amalgamation:" + headerPath)
 		
 	def CloseAmalgamationStreams(self):
-		self.m_headerAmalgamation.close()
-		self.m_sourceAmalgamation.close()                                                                                                          
+		self.headerAmalgamation.close()
+		self.sourceAmalgamation.close()                                                                                                          
 		
 	def GetOutputStreamForExt(self , ext):
 		if IsCppSourceFile(ext):
-			return self.m_sourceAmalgamation
+			return self.sourceAmalgamation
 			
 		elif IsCppHeaderFile(ext):
-			return self.m_headerAmalgamation
+			return self.headerAmalgamation
 			
 		return None
 				
@@ -103,7 +103,7 @@ class SourceInfo:
 		if not IsCppSourceFile(ext):
 			print ("Warning: %s is not a recognized c++ source file extension" % (ext))
 		
-		self.m_sourceFileExt = ext
+		self.sourceFileExt = ext
 		
 	def SetHeaderFileExt(ext):
 		AdjustFileExtension(ext)
@@ -111,7 +111,7 @@ class SourceInfo:
 		if not IsCppHeaderFile(ext):
 			print ("Warning: %s is not a recognized c++ header file extension" % (ext))
 		
-		self.m_sourceFileExt = ext
+		self.sourceFileExt = ext
 	
 	def PrintParseFileMessage(self , message , path  , depth):
 		tabs = ''
@@ -128,19 +128,19 @@ class SourceInfo:
 		
 		#todo: handle "../" in include string -- result = UP_DIRECTORY_MATCHER.findall(include)
 		
-		for includeDir in self.m_includeDirs:
+		for includeDir in self.includeDirs:
 			absPath = os.path.join(includeDir , include)
 			if os.path.exists(absPath): return absPath
 			
 		
-		for sourceDir in self.m_sourceDirs:
+		for sourceDir in self.sourceDirs:
 			absPath = os.path.join(sourceDir , include)
 			if os.path.exists(absPath): return absPath
 		
 		return None
 		
 	def ShouldParseFile(self , path , ext):
-		if (path in self.m_scannedFiles): return ALREADY_SCANNED
+		if (path in self.scannedFiles): return ALREADY_SCANNED
 		
 		if not IsCppFile(ext) or not os.path.exists(path): 
 			return EXTERNAL_FILE
@@ -156,7 +156,7 @@ class SourceInfo:
 			return info
 		                                 
 		self.LogMessage("scan file: " + path, 5)     
-		self.m_scannedFiles.add(path)
+		self.scannedFiles.add(path)
 		
 		stream = self.GetOutputStreamForExt(ext)
 		
@@ -173,7 +173,7 @@ class SourceInfo:
 				
 				#only include external files once
 				if call == EXTERNAL_FILE:
-					self.m_scannedFiles.add(includeFile)
+					self.scannedFiles.add(includeFile)
 		
 		src.close()
 		src = None
@@ -184,7 +184,7 @@ class SourceInfo:
 		
 	def ParseSourceDirectoies(self):
 	
-		for sourceDirectory in 	self.m_sourceDirs:
+		for sourceDirectory in 	self.sourceDirs:
 			for root, subFolders, files in os.walk(sourceDirectory):
 				for filename in files:
 					path =  os.path.join(root, filename)
@@ -201,10 +201,10 @@ class SourceInfo:
 	def AddFileToQueue(self, filename, ext):
 		if IsCppHeaderFile(ext):
 			self.LogMessage("enqueue header file: " + filename, 5)     
-			self.m_headerQueue.append(filename)
+			self.headerQueue.append(filename)
 		elif IsCppSourceFile(ext):
 			self.LogMessage("enqueue source file: " + filename, 5) 
-			self.m_sourceQueue.append(filename)
+			self.sourceQueue.append(filename)
 				
 	def AmalgamateQueue(self, queue, stream):
 		while (len(queue) > 0):
@@ -228,8 +228,8 @@ class SourceInfo:
 	
 	def WriteAlgamationFiles(self):
 		self.InitAmalgamationStreams()
-		self.AmalgamateQueue(self.m_headerQueue, self.m_headerAmalgamation)
-		self.AmalgamateQueue(self.m_sourceQueue, self.m_sourceAmalgamation)
+		self.AmalgamateQueue(self.headerQueue, self.headerAmalgamation)
+		self.AmalgamateQueue(self.sourceQueue, self.sourceAmalgamation)
 		self.CloseAmalgamationStreams()
 			
 baseDir = sys.argv[1]
